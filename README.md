@@ -1,4 +1,4 @@
-# Offline speech-to-text for Android: Parakeet + NeMo-Speech.cpp
+# Parakeet Android: on-device speech recognition
 
 On-device speech recognition for Android in Kotlin and Jetpack Compose. It runs NVIDIA's **Parakeet TDT 0.6B v3** (Q8_0 GGUF) on the phone's CPU through [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) and ggml. No cloud API, no audio upload, and it works in airplane mode once the model is downloaded.
 
@@ -48,8 +48,8 @@ Model file size is not peak RAM usage. The runtime also needs working memory; th
 ## Get the code and build
 
 ```sh
-git clone --recurse-submodules https://github.com/meet30997/offline_transcription.git
-cd offline_transcription
+git clone --recurse-submodules https://github.com/meet30997/parakeet-android-on-device-speech-recognition.git
+cd parakeet-android-on-device-speech-recognition
 ```
 
 For an existing checkout:
