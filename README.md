@@ -1,169 +1,138 @@
 # Parakeet Android: on-device speech recognition
 
-On-device speech recognition for Android in Kotlin and Jetpack Compose. It runs NVIDIA's **Parakeet TDT 0.6B v3** (Q8_0 GGUF) on the phone's CPU through [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) and ggml. No cloud API, no audio upload, and it works in airplane mode once the model is downloaded.
+An Android app that does offline speech-to-text with NVIDIA's Parakeet TDT 0.6B v3 model, running entirely on the phone's CPU. It's written in Kotlin and Jetpack Compose and uses [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp) (built on ggml) for inference through JNI.
 
-📖 **Full write-up with benchmarks:** [On-Device Speech-to-Text on Android: Parakeet and NeMo Benchmarks](https://meetprajapati.com/blogs/on-device-transcription-android-parakeet-nemo-speech/)
+There's no cloud API. You download the model once, and after that transcription works in airplane mode.
+
+I wrote up how it works and how it performs here: [On-Device Speech-to-Text on Android: Parakeet and NeMo Benchmarks](https://meetprajapati.com/blogs/on-device-transcription-android-parakeet-nemo-speech/).
 
 <p align="center">
-  <img src="docs/images/model-ready.webp" width="260" alt="Offline transcription app on a Pixel 8a with the Parakeet model loaded">
+  <img src="docs/images/model-ready.webp" width="260" alt="Parakeet on-device speech recognition app on a Pixel 8a with the model loaded">
   &nbsp;&nbsp;
-  <img src="docs/images/benchmark.webp" width="260" alt="App transcribing the bundled JFK clip on-device">
+  <img src="docs/images/benchmark.webp" width="260" alt="Android app transcribing an audio clip offline with Parakeet">
 </p>
 
-## Results on a Pixel 8a
+## How fast is it?
 
-11-second clip, CPU only, 4 threads, 10 runs per build ([raw data](docs/benchmarks/)):
+On a Pixel 8a, an 11-second clip takes about 3.5 seconds to transcribe on four CPU threads. The CPU build flag makes a big difference:
 
-| CPU build (`-PcpuArch=`) | Median | Real-time factor |
+| Build (`-PcpuArch=`) | Median time | Real-time factor |
 | --- | --- | --- |
-| `armv8-a` (default, portable) | 6,490 ms | 0.59 |
+| `armv8-a` (default) | 6,490 ms | 0.59 |
 | `armv8.2-a+dotprod+fp16` | 4,134 ms | 0.38 |
-| `armv8.2-a+dotprod+fp16+i8mm` | **3,500 ms** | **0.32** |
+| `armv8.2-a+dotprod+fp16+i8mm` | 3,500 ms | 0.32 |
 
-- **The CPU build flag is worth 46%.** Specialized builds need CPUs with those instructions; see [CPU configuration](#cpu-configuration).
-- **Four threads beat 2, 6 and 8** on every build.
-- **Live captions lag.** Parakeet runs offline inference over bounded audio segments; the previews are **not native cache streaming**. Final text arrived 1–16 s after speech ended in live-pipeline replays. The [blog post](https://meetprajapati.com/blogs/on-device-transcription-android-parakeet-nemo-speech/) explains why.
+Each row is the median of 10 runs. Four threads was faster than two, six or eight. The raw numbers are in [docs/benchmarks](docs/benchmarks/).
 
-## Features
+Live captions are slower than these numbers suggest. Parakeet doesn't stream here: the app re-runs the model on chunks of audio, so previews and long segments can queue up. In my tests, final text showed up 1 to 16 seconds after speech ended. The blog post goes into why.
 
-- Live microphone transcription with incremental previews and final turns
-- Model download (resumable, SHA-256 verified) or local GGUF import
-- Bundled JFK audio benchmark that needs no microphone permission
-- Local transcript history (latest 500 turns), copy, and clear
-- Adjustable CPU threads; inference, first-text, finalization, and queue-age diagnostics
+## What the app does
+
+- Transcribes from the microphone, with preview text while you speak and a final transcript when you pause
+- Downloads the model (resumable, checked against a pinned SHA-256) or imports a GGUF file you already have
+- Includes an 11-second JFK clip you can transcribe without granting microphone permission
+- Keeps your last 500 transcripts on the device, with copy and clear
+- Lets you change the CPU thread count and shows inference time and latency
 
 ## Requirements
 
-| Component | Version / requirement |
+| | |
 | --- | --- |
-| Device | ARM64 (`arm64-v8a`), Android 9 / API 28 or later |
-| Android SDK | Compile/target API 36; Build Tools 36.0.0 |
-| JDK | 17 (Gradle runs on JDK 17 or a compatible newer JDK) |
-| Gradle / AGP | Wrapper 9.1.0 / Android Gradle Plugin 9.0.1 |
+| Phone | ARM64, Android 9 (API 28) or newer |
+| Android SDK | API 36, Build Tools 36.0.0 |
+| JDK | 17 |
+| Gradle / AGP | 9.1.0 / 9.0.1 |
 | NDK / CMake | 27.1.12297006 / 3.31.6 |
-| Model | 713,975,456 bytes: approximately 714 MB / 681 MiB |
+| Storage | About 714 MB for the model, plus room for the download |
 
-Model file size is not peak RAM usage. The runtime also needs working memory; this demo does not establish a minimum RAM guarantee. Leave additional disk space for partial downloads, imports, and model replacement. ARM64 is the only packaged ABI; x86 emulators are unsupported.
+The APK only includes `arm64-v8a`, so x86 emulators won't work.
 
-## Get the code and build
+## Build and run
 
 ```sh
 git clone --recurse-submodules https://github.com/meet30997/parakeet-android-on-device-speech-recognition.git
 cd parakeet-android-on-device-speech-recognition
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-For an existing checkout:
+If you cloned without `--recurse-submodules`, run `git submodule update --init --recursive`. SentencePiece is a submodule; NeMo-Speech.cpp and its ggml source are vendored (see [docs/dependencies.md](docs/dependencies.md)).
 
-```sh
-git submodule update --init --recursive
-```
-
-SentencePiece is pinned at `17d7580d6407802f85855d2cc9190634e2c95624`. NeMo-Speech.cpp and its llama.cpp/ggml source are vendored in the repository; see [dependency provenance](docs/dependencies.md). Git is required during native configuration to materialize NeMo's patched ggml tree.
-
-Install the SDK components through Android Studio's SDK Manager, or from an Android command-line tools installation:
+To install the toolchain from the command line:
 
 ```sh
 sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.31.6"
 ```
 
-Set `ANDROID_HOME` to your SDK directory, or create an untracked `local.properties` with `sdk.dir=/absolute/path/to/Android/sdk`. Set `JAVA_HOME` to your JDK installation if needed. Open the project in an Android Studio version supporting AGP 9, or build using the wrapper:
+Point `ANDROID_HOME` at your SDK, or add `sdk.dir=...` to `local.properties`.
+
+When the app opens, tap **Download Model**, wait for it to load, then tap **Run JFK Benchmark Audio** or the mic button.
+
+## The model
+
+The app downloads a pinned revision of NVIDIA's [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/tree/541d1f99c6b0c3cd0b11a95167540bb8edefd82b) GGUF:
+
+- File: `parakeet-tdt-0.6b-v3.q8_0.gguf`
+- Size: 713,975,456 bytes
+- SHA-256: `e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e`
+
+Imported files are checked for a valid GGUF structure but not against NVIDIA's hash, so only import files you trust. I've only tested this exact model.
+
+## Faster builds for newer phones
+
+The default build targets plain `armv8-a`, so it runs on any 64-bit ARM phone. If you know your phones support dot-product and int8 matrix instructions (check `asimddp` and `i8mm` in `/proc/cpuinfo`), build with:
 
 ```sh
-./gradlew :app:assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew :app:assembleRelease -PcpuArch=armv8.2-a+dotprod+fp16+i8mm
 ```
 
-The debug APK is signed with your local debug key. Release APKs are unsigned; configure your own signing before distributing one. Do not commit signing keys.
+That was 46% faster on the Pixel 8a. It will crash on phones without those instructions, so don't ship it to everyone. Release APKs are unsigned; add your own signing config.
 
-## Try transcription
-
-1. Launch the app and tap **Download Model**, or use **Load Local** to import the supported GGUF file. Downloading requires internet; import can use a file already on the device.
-2. Wait for model validation, initialization, and preview warmup to finish.
-3. Tap **Run JFK Benchmark Audio** to transcribe the bundled 11-second recording without microphone permission or microphone capture.
-4. To try your own speech, grant microphone permission and tap the microphone button. Stop it to finish the current utterance. You can copy or clear the saved transcripts.
-5. After setup, repeat the benchmark or microphone demo with connectivity disabled to check offline operation.
-
-Downloads use NVIDIA's pinned [model revision](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/tree/541d1f99c6b0c3cd0b11a95167540bb8edefd82b):
-
-- Filename: `parakeet-tdt-0.6b-v3.q8_0.gguf`
-- SHA-256: `e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e`
-- Size: `713975456` bytes
-
-Transfers are resumable and checked for exact size and SHA-256. Imports receive GGUF metadata/tensor-bound checks and native activation validation, but are **not authenticated against NVIDIA's download hash**. Only import models from trusted sources. This sample is tested with the pinned Parakeet model, not arbitrary GGUF or other ASR models.
-
-Replacement retains a recoverable previous model until activation at the permanent path succeeds. Interrupted replacement recovers on startup. Models use Android's no-backup directory; existing models migrate from `files/models`.
-
-## Pipeline and behavior
+## How it works
 
 ```text
-AudioRecord (16-kHz mono PCM16, 32-ms frames)
-  → bounded capture queue
-  → adaptive RMS energy segmentation
-  → final queue + replaceable preview slot
-  → single native inference worker
-  → JNI → NeMo-Speech.cpp → ggml CPU
-  → StateFlow → Compose + local transcript history
+AudioRecord (16 kHz mono, 32 ms frames)
+  → capture queue
+  → energy-based speech segmenter
+  → final queue + one preview slot
+  → single inference thread
+  → JNI → NeMo-Speech.cpp → ggml (CPU)
+  → Jetpack Compose UI
 ```
 
-Capture uses a dedicated audio-priority thread. Segmentation and inference run independently. Finals use a bounded, lossless queue; superseded previews use one replaceable slot. Capture stops with a visible error if its queue cannot keep up.
+The mic is read on its own thread, so slow inference never blocks capture. The segmenter ends a segment after 400 ms of silence and forces a split at 8 seconds. Each segment gets up to two previews and one final transcription. All native calls go through one thread, so a model can't be freed while it's still running.
 
-The segmenter retains 256 ms of pre-roll and uses an adaptive RMS threshold with hysteresis. It submits at most two offline previews per segment, aims to finalize after 400 ms of silence, prefers a quiet boundary after six seconds, and forces a split at eight seconds with 384 ms of context and text overlap reconciliation. Stop flushes accepted unfinished speech. These are implementation targets, not guaranteed end-to-end latencies.
-
-Leaving the app stops capture and finishes accepted speech. Configuration changes retain the session. Thread changes and benchmarks are unavailable while recording; engine serialization protects native session lifetime when operations overlap.
-
-The UI separates inference time, first-text latency, speech-end-to-final latency, and queue age. Real-time factor (RTF) is inference time divided by input duration; values below 1 mean faster-than-real-time **batch processing**, not an equivalent live caption delay. Confidence is unavailable for the current TDT decoder. Initialization warms the two preview graph shapes before recording becomes available.
-
-Native libraries built by this project use explicit 16-KiB LOAD and RELRO alignment. The packaged NDK C++ runtime and AndroidX graphics-path library have 16-KiB LOAD alignment but non-aligned RELRO ends; the checker reports those separately. The connected validation phone uses 4-KiB pages. Full runtime validation on a 16-KiB device, and any necessary rebuild/update of those prebuilt dependencies, remain outstanding; do not treat the static checks as a full 16-KiB compatibility certification. See [Android's page-size guidance](https://developer.android.com/guide/practices/page-sizes).
-
-## Privacy and retention
-
-- The app's network client downloads model weights from Hugging Face over HTTPS. It has no transcription server, analytics SDK, or audio/transcript upload path. The model-card link opens an external browser only when tapped.
-- Microphone samples are held in memory for transcription; the app does not write microphone recordings to audio files.
-- The most recent **500 transcript turns** are saved as plaintext in app-private storage, including final speech completed during shutdown. Benchmarks append to that history. Clear history in the app or uninstall to remove it from normal app storage; clearing is not a forensic secure-erasure guarantee.
-- Models live in `noBackupFilesDir`. The backup XML excludes the entire app-private `file` domain, including transcript history, AtomicFile sidecars, and legacy models, from Android Auto Backup and device transfer. Existing local history is preserved. This change cannot revoke a backup made by an older build.
-- Copying a transcript puts text on the system clipboard. Use that action deliberately when handling sensitive speech. On-device processing alone is not a complete privacy guarantee.
-
-## CPU configuration
-
-The default `armv8-a` build supports baseline ARM64 CPUs. ggml applies architecture flags to both C and C++ kernels. CPU inference defaults to four threads; more threads can be slower.
-
-For hardware verified to support DOTPROD and FP16 arithmetic:
-
-```sh
-./gradlew :app:assembleRelease -PcpuArch=armv8.2-a+dotprod+fp16
-```
-
-On a Pixel 8a (Tensor G3), `armv8.2-a+dotprod+fp16+i8mm` was 46% faster than the portable default. That specialized APK requires the selected CPU instructions. Android API level alone does not establish CPU support. Compare repeated warm runs and sustained sessions on each target device.
-
-## Tests and CI
+## Tests
 
 ```sh
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-CI runs JVM tests, lint, portable debug/release builds, and APK ABI/ELF LOAD/ZIP alignment and attribution checks without downloading model weights. You can run the packaging check locally with `python3 scripts/check_apk.py app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/app-release-unsigned.apk`. Native integration tests require a connected ARM64 device with the model already installed; they **skip** if it is missing. UI tests run without a model. Connected tests retain the installed app and its model.
+The device tests run the bundled clip through the real JNI path and check the word error rate. They need a connected ARM64 phone with the model already downloaded in the app, and they're skipped otherwise. The benchmark test takes optional `threads` and `runs` arguments:
 
-The native tests replay bundled audio through segmentation and JNI without opening the microphone, check word error rate against a fixture reference, and exercise transactional native model installation. Installation tests temporarily copy the model, so leave additional free storage. Release builds use R8/resource shrinking; keep `app/proguard-rules.pro` aligned with JNI names and constructor signatures.
+```sh
+adb shell am instrument -w \
+  -e class 'com.example.offlinetranscription.NativePipelineTest#bundledAudioBenchmarkRecordsRepeatedNativeInference' \
+  -e threads 4 -e runs 5 \
+  com.example.offlinetranscription.test/androidx.test.runner.AndroidJUnitRunner
+```
 
 ## Troubleshooting
 
-| Symptom | Check |
+| Problem | Try |
 | --- | --- |
-| Missing SentencePiece / CMake sources | Run `git submodule update --init --recursive`; build from a Git checkout, not GitHub's source ZIP. |
-| SDK / NDK / CMake not found | Install the exact toolchain above and check `ANDROID_HOME` or `local.properties`. |
-| APK will not install | Use a physical ARM64 device or ARM64 emulator on API 28+; unsigned release APKs require signing. |
-| Model download interrupted | Retry to resume. A checksum failure discards the partial file and requires a new download. |
-| Native initialization fails | Check the model file, available memory/storage, ABI, and whether a specialized build matches the CPU. |
-| Speech missing in noise | Energy-based VAD is limited; evaluate with the target microphone and noise conditions. |
-| Native tests skipped | Download/import the model in the installed app before running connected tests. |
+| CMake can't find SentencePiece | Run `git submodule update --init --recursive`. GitHub's "Download ZIP" doesn't include submodules. |
+| SDK, NDK or CMake not found | Install the versions above and check `ANDROID_HOME` or `local.properties`. |
+| APK won't install | Use an ARM64 phone on Android 9 or newer. |
+| Download stopped partway | Tap download again and it resumes. |
+| App crashes when the model loads | If you built with `-PcpuArch`, your phone may not support those instructions. Try the default build. |
+| Speech gets missed in noise | The segmenter is energy-based, so loud backgrounds confuse it. |
 
-## Evidence and limits
+## Limitations
 
-Pixel 8a CPU-build and thread-count measurements are in [docs/benchmarks](docs/benchmarks/). The [original audit](docs/performance-audio-audit-2026-10-24.md) and [remediation report](docs/audit-remediation-2026-10-24.md) contain earlier Galaxy S22 Ultra measurements. The [public release review](docs/public-release-readiness-2026-10-25.md) records this release preparation and current verification, including any measurements from other devices.
+I tested on one phone with one short English clip, so treat the numbers as a starting point. The app doesn't do streaming inference, speaker diarization, or GPU/NPU acceleration, and I haven't measured memory or battery use yet.
 
-The JFK fixture is a regression baseline, not an accuracy benchmark for arbitrary speech. Energy VAD and overlap reconciliation need broader evaluation across noise, accents, microphones, and languages. Peak RAM, sustained battery/thermal behavior, and p95 latency have not been established. GPU/NPU acceleration and diarization are outside this sample.
+## License
 
-## License and attribution
-
-Original app code and documentation are [MIT licensed](LICENSE). Third-party code, the sample audio, and model weights retain their own terms. See [third-party notices](THIRD_PARTY_NOTICES.md) and the notices packaged under `assets/licenses` in both APK variants. The downloaded NVIDIA model is CC BY 4.0; model weights are not committed to this repository.
+The app code is [MIT](LICENSE). NeMo-Speech.cpp is Apache 2.0, and the Parakeet model weights are CC BY 4.0 from NVIDIA. The weights aren't included in this repo. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the rest.
