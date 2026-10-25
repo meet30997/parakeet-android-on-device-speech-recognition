@@ -1,0 +1,108 @@
+{
+  "date": "2026-10-25",
+  "cpuArch": "armv8-a",
+  "backend": "CPU",
+  "apkVariant": "debug",
+  "pageSizeBytes": 4096,
+  "microphonePermissionGranted": false,
+  "microphoneOpenedForValidation": false,
+  "modelSha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+  "benchmark": {
+    "device": "Pixel 8a",
+    "androidVersion": "17",
+    "sdk": 37,
+    "threads": 4,
+    "audioSeconds": 11,
+    "modelFilename": "parakeet-tdt-0.6b-v3.q8_0.gguf",
+    "modelRevision": "541d1f99c6b0c3cd0b11a95167540bb8edefd82b",
+    "initializationIncludingPreviewWarmupMs": 1965,
+    "runs": [
+      {
+        "inferenceMs": 4878,
+        "inferenceRtf": 0.4434545338153839,
+        "transcript": "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
+      },
+      {
+        "inferenceMs": 4614,
+        "inferenceRtf": 0.41945454478263855,
+        "transcript": "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
+      },
+      {
+        "inferenceMs": 6250,
+        "inferenceRtf": 0.5681818127632141,
+        "transcript": "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
+      },
+      {
+        "inferenceMs": 6346,
+        "inferenceRtf": 0.5769091248512268,
+        "transcript": "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
+      },
+      {
+        "inferenceMs": 6016,
+        "inferenceRtf": 0.5469090938568115,
+        "transcript": "And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country."
+      }
+    ]
+  },
+  "liveReplay": {
+    "wer": 0,
+    "transcript": "And so, my fellow Americans, ask not what your country can do for you. Ask what you can do for your country.",
+    "firstPartialMs": 1506,
+    "finalLatencyMs": 4355,
+    "queueAgeMs": 1986,
+    "inferenceRtf": 0.69592196
+  },
+  "limitations": [
+    "Single audio fixture and five batch calls",
+    "Live metrics are one observation, not percentile or sustained measurements",
+    "No microphone capture or noisy-room validation",
+    "Phone uses 4-KiB pages; 16-KiB runtime validation remains outstanding"
+  ],
+  "unitTests": {
+    "tests": 19,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "deviceTests": {
+    "tests": 5,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "androidLint": {
+    "errors": 0,
+    "warnings": 14
+  },
+  "releaseApkBytes": 7501482,
+  "uiSmoke": {
+    "inferenceMs": 4189,
+    "inferenceRtf": 0.38081818181818183,
+    "note": "Separate button-driven debug run; screenshot benchmark.webp, not one of the five instrumented runs"
+  },
+  "packaging": {
+    "arm64Libraries": 8,
+    "elfLoadAlignmentBytes": 16384,
+    "zipAlignmentCheckPassed": true,
+    "licenseNoticesPackaged": true,
+    "modelWeightsPackaged": false,
+    "prebuiltRelroEndNotAligned": [
+      "libandroidx.graphics.path.so",
+      "libc++_shared.so"
+    ],
+    "runtime16KiBValidated": false
+  },
+  "website": {
+    "lintPassed": true,
+    "buildPassed": true,
+    "visualCheckWidths": [
+      "desktop",
+      "375px responsive viewport"
+    ],
+    "assets": [
+      "cover.webp",
+      "model-ready.webp",
+      "benchmark.webp"
+    ]
+  }
+}

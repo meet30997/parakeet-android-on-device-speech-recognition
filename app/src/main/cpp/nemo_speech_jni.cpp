@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <limits>
+#include <cstring>
 
 #include "nemo_speech/asr.h"
 
@@ -16,6 +18,28 @@ static void throwRuntimeException(JNIEnv* env, const char* msg) {
     if (exClass != nullptr) {
         env->ThrowNew(exClass, msg);
     }
+}
+
+static jstring newUtf8String(JNIEnv* env, const char* text) {
+    const auto length = std::strlen(text);
+    if (length > static_cast<size_t>(std::numeric_limits<jsize>::max())) {
+        throwRuntimeException(env, "Transcript is too large");
+        return nullptr;
+    }
+    jbyteArray bytes = env->NewByteArray(static_cast<jsize>(length));
+    if (!bytes) return nullptr;
+    env->SetByteArrayRegion(bytes, 0, static_cast<jsize>(length), reinterpret_cast<const jbyte*>(text));
+    jclass stringClass = env->FindClass("java/lang/String");
+    if (!stringClass) return nullptr;
+    jmethodID constructor = env->GetMethodID(stringClass, "<init>", "([BLjava/lang/String;)V");
+    if (!constructor) return nullptr;
+    jstring charset = env->NewStringUTF("UTF-8");
+    if (!charset) return nullptr;
+    auto result = static_cast<jstring>(env->NewObject(stringClass, constructor, bytes, charset));
+    env->DeleteLocalRef(bytes);
+    env->DeleteLocalRef(charset);
+    env->DeleteLocalRef(stringClass);
+    return result;
 }
 
 extern "C" {
@@ -40,6 +64,7 @@ Java_com_example_offlinetranscription_nemo_NemoSpeechJni_nativeInit(
     }
 
     const char* modelPath = env->GetStringUTFChars(jModelPath, nullptr);
+    if (!modelPath) return 0;
     LOGI("Initializing NeMo-Speech ASR recognizer with model: %s, threads: %d", modelPath, numThreads);
 
     nemo_speech_asr_backend_config backend_cfg = {};
@@ -91,12 +116,18 @@ Java_com_example_offlinetranscription_nemo_NemoSpeechJni_nativeRecognizeChunk(
         throwRuntimeException(env, "Audio samples array cannot be null");
         return nullptr;
     }
+    if (sampleRate <= 0) {
+        throwRuntimeException(env, "Sample rate must be positive");
+        return nullptr;
+    }
 
     auto* recognizer = reinterpret_cast<nemo_speech_asr_recognizer*>(handle);
     jsize nSamples = env->GetArrayLength(jAudioSamples);
     if (nSamples == 0) {
         jclass resultClass = env->FindClass("com/example/offlinetranscription/nemo/TranscriptionResult");
+        if (!resultClass) return nullptr;
         jmethodID ctor = env->GetMethodID(resultClass, "<init>", "(Ljava/lang/String;FFJZ)V");
+        if (!ctor) return nullptr;
         jstring emptyStr = env->NewStringUTF("");
         return env->NewObject(resultClass, ctor, emptyStr, 0.0f, 0.0f, (jlong)0, isFinal);
     }
@@ -136,13 +167,17 @@ Java_com_example_offlinetranscription_nemo_NemoSpeechJni_nativeRecognizeChunk(
     }
 
     const char* text = nemo_speech_asr_result_transcript(result, 0);
-    float conf = nemo_speech_asr_result_confidence(result, 0);
+    // The active TDT decoder has no calibrated posterior; its default 1.0 is not confidence.
+    float conf = std::numeric_limits<float>::quiet_NaN();
     float audioProcessedSec = nemo_speech_asr_result_audio_processed(result);
 
     jclass resultClass = env->FindClass("com/example/offlinetranscription/nemo/TranscriptionResult");
+    if (!resultClass) { nemo_speech_asr_result_destroy(result); return nullptr; }
     jmethodID ctor = env->GetMethodID(resultClass, "<init>", "(Ljava/lang/String;FFJZ)V");
+    if (!ctor) { nemo_speech_asr_result_destroy(result); return nullptr; }
 
-    jstring jText = env->NewStringUTF(text ? text : "");
+    jstring jText = newUtf8String(env, text ? text : "");
+    if (!jText) { nemo_speech_asr_result_destroy(result); return nullptr; }
     jobject resultObj = env->NewObject(resultClass, ctor, jText, conf, audioProcessedSec, latencyMs, isFinal);
 
     nemo_speech_asr_result_destroy(result);

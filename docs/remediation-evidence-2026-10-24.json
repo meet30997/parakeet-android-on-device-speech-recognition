@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-24",
+  "unit_tests": 19,
+  "unit_failures": 0,
+  "device_tests": 4,
+  "device_failures": 0,
+  "device_skipped": 0,
+  "device": "Galaxy S22 Ultra SM-S908E, Android 16",
+  "model_sha256": "e3880d0aaaaf2c308ea2c35016b2b895c423eb3fda924c1b463d1c19b7f4d32e",
+  "release_apk_bytes": 7484201,
+  "release_dex_bytes": 1960204,
+  "baseline_release_mib": 48.66,
+  "optimized_live_replay": {
+    "wer": 0,
+    "transcript": "And so, my fellow Americans, ask not what your country can do for you. Ask what you can do for your country.",
+    "firstPartialMs": 1613,
+    "finalLatencyMs": 484,
+    "queueAgeMs": 2,
+    "inferenceRtf": 0.14154845
+  },
+  "optimized_minified_release_benchmark": {
+    "audio_seconds": 11,
+    "inference_ms": 1901,
+    "rtf": 0.17281818181818182,
+    "transcript_matches_reference": true
+  },
+  "cpu_compile_proof": [
+    {
+      "architecture_flags": [
+        "-march=armv8-a"
+      ],
+      "compiler_macros": [
+        {
+          "file": "ggml-cpu/arch/arm/quants.c",
+          "dotprod": false,
+          "fp16_vector": false
+        },
+        {
+          "file": "ggml-cpu/ggml-cpu.cpp",
+          "dotprod": false,
+          "fp16_vector": false
+        }
+      ]
+    },
+    {
+      "architecture_flags": [
+        "-march=armv8.2-a+dotprod+fp16"
+      ],
+      "compiler_macros": [
+        {
+          "file": "ggml-cpu/arch/arm/quants.c",
+          "dotprod": true,
+          "fp16_vector": true
+        },
+        {
+          "file": "ggml-cpu/ggml-cpu.cpp",
+          "dotprod": true,
+          "fp16_vector": true
+        }
+      ]
+    }
+  ],
+  "preview_budget": {
+    "captured_seconds": 6.08,
+    "before_submitted_seconds": 26.24,
+    "after_submitted_seconds": 8.64,
+    "note": "The after budget includes two previews and an explicit stop flush; this is an input-volume comparison, not a wall-clock speedup."
+  },
+  "limitations": [
+    "Single reference recording and one device",
+    "No sustained battery/thermal or p95 latency study",
+    "Energy VAD requires wider microphone/noise/language validation",
+    "Optimized CPU configuration requires compatible hardware"
+  ],
+  "microphone_opened_for_validation": false
+}

@@ -4,110 +4,99 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
-import android.util.Log
+import android.os.Process
+import android.os.SystemClock
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 import kotlin.math.sqrt
 
-class AudioRecordSource(
-    private val sampleRate: Int = 16000,
-    private val chunkDurationMs: Int = 160
-) {
-    companion object {
-        private const val TAG = "AudioRecordSource"
-    }
-
-    private var audioRecord: AudioRecord? = null
-    private var recordingJob: Job? = null
-
-    private val _audioChunks = MutableSharedFlow<FloatArray>(extraBufferCapacity = 64)
-    val audioChunks: SharedFlow<FloatArray> = _audioChunks.asSharedFlow()
-
-    private val _rmsLevel = MutableStateFlow(0f)
-    val rmsLevel: StateFlow<Float> = _rmsLevel.asStateFlow()
-
-    private val _isRecording = MutableStateFlow(false)
-    val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
+class AudioRecordSource(private val sampleRate: Int = 16000, private val chunkDurationMs: Int = 32) : AudioSource {
+    private val dispatcher = Executors.newSingleThreadExecutor { task ->
+        Thread({ Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO); task.run() }, "audio-capture")
+    }.asCoroutineDispatcher()
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private var job: Job? = null
+    @Volatile private var running = false
+    @Volatile private var recorder: AudioRecord? = null
+    private val level = MutableStateFlow(0f)
+    override val rmsLevel = level.asStateFlow()
 
     @SuppressLint("MissingPermission")
-    fun start(scope: CoroutineScope) {
-        if (_isRecording.value) return
-
-        val channelConfig = AudioFormat.CHANNEL_IN_MONO
-        val audioFormat = AudioFormat.ENCODING_PCM_16BIT
-        val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-        val chunkSizeSamples = (sampleRate * chunkDurationMs) / 1000
-        val bufferSize = maxOf(minBufferSize, chunkSizeSamples * 2)
-
-        val record = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_RECOGNITION,
-            sampleRate,
-            channelConfig,
-            audioFormat,
-            bufferSize
-        )
-
-        if (record.state != AudioRecord.STATE_INITIALIZED) {
-            record.release()
-            throw IllegalStateException("AudioRecord initialization failed")
-        }
-
-        record.startRecording()
-        audioRecord = record
-        _isRecording.value = true
-
-        recordingJob = scope.launch(Dispatchers.IO) {
-            val shortBuffer = ShortArray(chunkSizeSamples)
-            val floatBuffer = FloatArray(chunkSizeSamples)
-
+    override suspend fun start(onFrame: (AudioFrame) -> Boolean, onFinished: (Throwable?) -> Unit) {
+        check(job == null) { "Recorder is already started" }
+        val started = CompletableDeferred<Unit>()
+        running = true
+        job = scope.launch {
+            var record: AudioRecord? = null
+            var failure: Throwable? = null
             try {
-                while (isActive && _isRecording.value) {
-                    val read = record.read(shortBuffer, 0, chunkSizeSamples)
-                    if (read > 0) {
-                        var sumSquare = 0.0
-                        for (i in 0 until read) {
-                            val f = shortBuffer[i] / 32768.0f
-                            floatBuffer[i] = f
-                            sumSquare += (f * f)
-                        }
-
-                        // Calculate RMS [0.0 - 1.0]
-                        val rms = sqrt(sumSquare / read).toFloat()
-                        // Amplify slightly for visual impact on quiet mics
-                        val normalizedRms = (rms * 3.5f).coerceIn(0f, 1f)
-                        _rmsLevel.value = normalizedRms
-
-                        // Copy valid audio chunk
-                        val chunk = floatBuffer.copyOf(read)
-                        _audioChunks.emit(chunk)
+                val chunkSamples = sampleRate * chunkDurationMs / 1000
+                val minimum = AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                check(minimum > 0) { "Unsupported microphone format ($minimum)" }
+                record = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, sampleRate,
+                    AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, maxOf(minimum * 2, chunkSamples * 8))
+                check(record.state == AudioRecord.STATE_INITIALIZED) { "Microphone initialization failed" }
+                recorder = record
+                record.startRecording()
+                check(record.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "Microphone did not start" }
+                started.complete(Unit)
+                val pcm = ShortArray(chunkSamples)
+                var lastMeterAt = 0L
+                while (running && isActive) {
+                    val read = record.read(pcm, 0, pcm.size, AudioRecord.READ_BLOCKING)
+                    if (read <= 0) {
+                        if (!running) break
+                        error(if (read == AudioRecord.ERROR_DEAD_OBJECT) "Microphone disconnected. Start recording again."
+                            else "Microphone read failed ($read)")
                     }
+                    val samples = FloatArray(read)
+                    var energy = 0.0
+                    for (i in 0 until read) {
+                        val sample = pcm[i] / 32768f
+                        samples[i] = sample
+                        energy += sample.toDouble() * sample
+                    }
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastMeterAt >= 64) {
+                        level.value = (sqrt(energy / read).toFloat() * 3.5f).coerceIn(0f, 1f)
+                        lastMeterAt = now
+                    }
+                    check(onFrame(AudioFrame(samples, now))) { "Audio processing fell behind. Recording stopped to prevent silent audio loss." }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Exception during audio recording loop", e)
+                if (running) failure = e
+                if (!started.isCompleted) started.completeExceptionally(e)
             } finally {
-                try {
-                    record.stop()
-                    record.release()
-                } catch (ignored: Exception) {}
-                audioRecord = null
-                _isRecording.value = false
-                _rmsLevel.value = 0f
+                running = false
+                try { record?.stop() } catch (_: IllegalStateException) { }
+                record?.release()
+                recorder = null
+                level.value = 0f
+                onFinished(failure)
             }
         }
+        try { started.await() } catch (e: Exception) { stop(); throw e }
     }
 
-    fun stop() {
-        _isRecording.value = false
-        recordingJob?.cancel()
-        recordingJob = null
+    override suspend fun stop() {
+        running = false
+        try { recorder?.stop() } catch (_: IllegalStateException) { }
+        job?.join()
+        job = null
+    }
+
+    override fun close() {
+        check(job == null || job?.isCompleted == true) { "Stop recording before closing the source" }
+        scope.cancel()
+        dispatcher.close()
     }
 }

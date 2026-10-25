@@ -13,3 +13,18 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Local credentials and signing material. Model weights are downloaded at runtime.
+.env
+.env.*
+*.jks
+*.keystore
+keystore.properties
+*.pem
+*.p12
+*.pfx
+*.part
+/models/
+
+# Vendored llama.cpp includes intentional vocabulary GGUF fixtures; retain them.
+/app/src/main/assets/*.gguf

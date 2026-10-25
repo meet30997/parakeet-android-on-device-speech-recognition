@@ -51,7 +51,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,7 +84,27 @@ fun TranscriptionScreen(
     onRequestRecordPermission: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    TranscriptionContent(state, viewModel.rmsLevel, hasRecordPermission, onRequestRecordPermission,
+        viewModel::setThreadCount, viewModel::clearTranscripts, viewModel::toggleRecording,
+        viewModel::startModelDownload, viewModel::importLocalModel, viewModel::runJfkBenchmark, modifier)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TranscriptionContent(
+    state: TranscriptionUiState,
+    rmsLevel: StateFlow<Float>,
+    hasRecordPermission: Boolean,
+    onRequestRecordPermission: () -> Unit,
+    onSetThreadCount: (Int) -> Unit,
+    onClearTranscripts: () -> Unit,
+    onToggleRecording: () -> Unit,
+    onStartDownload: () -> Unit,
+    onImportLocalModel: (android.net.Uri) -> Unit,
+    onRunBenchmark: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
 
@@ -92,14 +113,16 @@ fun TranscriptionScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            viewModel.importLocalModel(uri)
+            onImportLocalModel(uri)
         }
     }
 
     // Auto-scroll to latest turn or interim hypothesis
     LaunchedEffect(state.completedTurns.size, state.interimHypothesis) {
         val totalItems = state.completedTurns.size + (if (state.interimHypothesis.isNotBlank()) 1 else 0)
-        if (totalItems > 0) {
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        val followsLatest = lastVisible >= (listState.layoutInfo.totalItemsCount - 2).coerceAtLeast(0)
+        if (totalItems > 0 && followsLatest && !listState.isScrollInProgress) {
             listState.animateScrollToItem(totalItems - 1)
         }
     }
@@ -143,7 +166,7 @@ fun TranscriptionScreen(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { threadMenuExpanded = true }
+                                .clickable(enabled = !state.isRecording && !state.isBusy) { threadMenuExpanded = true }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
@@ -163,7 +186,7 @@ fun TranscriptionScreen(
                                 DropdownMenuItem(
                                     text = { Text("$count CPU Threads") },
                                     onClick = {
-                                        viewModel.setThreadCount(count)
+                                        onSetThreadCount(count)
                                         threadMenuExpanded = false
                                     }
                                 )
@@ -172,8 +195,8 @@ fun TranscriptionScreen(
                     }
 
                     IconButton(
-                        onClick = { viewModel.clearTranscripts() },
-                        enabled = state.completedTurns.isNotEmpty() || state.interimHypothesis.isNotBlank()
+                        onClick = onClearTranscripts,
+                        enabled = !state.isBusy && (state.completedTurns.isNotEmpty() || state.interimHypothesis.isNotBlank())
                     ) {
                         Icon(
                             imageVector = Icons.Default.ClearAll,
@@ -203,7 +226,7 @@ fun TranscriptionScreen(
                 ) {
                     // Real-time Waveform Canvas
                     WaveformVisualizer(
-                        rmsLevel = state.rmsLevel,
+                        rmsLevel = rmsLevel,
                         isRecording = state.isRecording,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
@@ -238,14 +261,15 @@ fun TranscriptionScreen(
                         val fabIconColor = if (state.isRecording) Color.White else Color.Black
 
                         FloatingActionButton(
-                            onClick = {
+                            onClick = recordClick@ {
+                                if (state.isBusy) return@recordClick
                                 if (!hasRecordPermission) {
                                     onRequestRecordPermission()
                                 } else {
                                     if (!state.isModelReady) {
                                         Toast.makeText(context, "Please download or load the model first", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        viewModel.toggleRecording()
+                                        onToggleRecording()
                                     }
                                 }
                             },
@@ -257,7 +281,7 @@ fun TranscriptionScreen(
                         ) {
                             Icon(
                                 imageVector = if (state.isRecording) Icons.Default.MicOff else Icons.Default.Mic,
-                                contentDescription = if (state.isRecording) "Stop Recording" else "Start Live Speech",
+                                contentDescription = if (state.isBusy) "Finishing audio processing" else if (state.isRecording) "Stop Recording" else "Start Live Speech",
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -292,6 +316,9 @@ fun TranscriptionScreen(
                 rtf = state.latestRtf,
                 latencyMs = state.latestLatencyMs,
                 threads = state.threadCount,
+                firstPartialMs = state.firstPartialMs,
+                finalLatencyMs = state.finalLatencyMs,
+                queueAgeMs = state.queueAgeMs,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 
@@ -337,9 +364,10 @@ fun TranscriptionScreen(
                 isModelReady = state.isModelReady,
                 modelSizeMb = state.modelSizeMb,
                 downloadState = state.downloadState,
-                onStartDownload = { viewModel.startModelDownload() },
+                onStartDownload = onStartDownload,
                 onPickLocalModel = { filePickerLauncher.launch(arrayOf("*/*")) },
-                onTestJfkSample = { viewModel.runJfkBenchmark() },
+                onTestJfkSample = onRunBenchmark,
+                actionsEnabled = !state.isBusy && !state.isRecording,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 

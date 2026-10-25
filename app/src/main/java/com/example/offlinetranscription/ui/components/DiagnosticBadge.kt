@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -73,12 +74,15 @@ fun PerformanceRow(
     rtf: Float,
     latencyMs: Long,
     threads: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    firstPartialMs: Long = 0,
+    finalLatencyMs: Long = 0,
+    queueAgeMs: Long = 0
 ) {
-    Row(
+    FlowRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         val rtfColor = if (rtf in 0.01f..0.8f) StatusSuccess else if (rtf > 0.8f) StatusWarning else null
         DiagnosticBadge(
@@ -87,12 +91,15 @@ fun PerformanceRow(
             highlightColor = rtfColor
         )
         DiagnosticBadge(
-            label = "Latency",
+            label = "Inference",
             value = if (latencyMs > 0) "${latencyMs}ms" else "--"
         )
         DiagnosticBadge(
             label = "Threads",
             value = if (threads > 0) "$threads CPU" else "Auto"
         )
+        if (firstPartialMs > 0) DiagnosticBadge("First text", "${firstPartialMs}ms")
+        if (finalLatencyMs > 0) DiagnosticBadge("Speech end", "${finalLatencyMs}ms")
+        if (queueAgeMs > 0) DiagnosticBadge("Queue", "${queueAgeMs}ms")
     }
 }

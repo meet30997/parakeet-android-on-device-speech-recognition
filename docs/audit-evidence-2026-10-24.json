@@ -1,0 +1,190 @@
+{
+  "audit_date": "2026-10-24",
+  "source_commit": "0d2f9f8",
+  "source_working_tree_note": "Existing modification to app/src/main/java/com/example/offlinetranscription/ui/components/ModelDownloadCard.kt was reviewed and left unchanged.",
+  "scope": "Application code, JNI, active native ASR path/configuration, packaging and tests; unused vendor subsystems not exhaustively audited.",
+  "application_code_changed": false,
+  "validation": {
+    "testDebugUnitTest": {
+      "result": "passed",
+      "tests": 3,
+      "rerun": true
+    },
+    "lintDebug": {
+      "result": "passed",
+      "warnings": 19,
+      "errors": 0,
+      "rerun": true
+    },
+    "assembleDebug": {
+      "result": "passed",
+      "apk_mib": 65.88
+    },
+    "assembleRelease": {
+      "result": "passed",
+      "unsigned_apk_mib": 48.66,
+      "uncompressed_dex_mib": 42.97
+    },
+    "compileDebugAndroidTestKotlin": {
+      "result": "failed",
+      "reason": "Unresolved reference MainScreen at app/src/androidTest/java/com/example/offlinetranscription/ui/main/MainScreenTest.kt:17"
+    }
+  },
+  "segmenter_probe": {
+    "method": "Java source launcher invoked the compiled production VadSegmenter with 38 constant synthetic frames at amplitude 0.1; no ASR inference.",
+    "sample_rate": 16000,
+    "chunk_samples": 2560,
+    "captured_seconds": 6.08,
+    "partial_input_seconds": [
+      0.96,
+      1.92,
+      2.88,
+      3.84,
+      4.8,
+      5.76
+    ],
+    "final_input_seconds": 6.08,
+    "total_submitted_seconds": 26.24,
+    "submitted_audio_multiplier": 4.315789473684211,
+    "linear_cost_sustainable_inference_rtf_below": 0.23170731707317074,
+    "first_partial_trigger_ms": 960,
+    "silence_endpoint_ms": 640,
+    "quiet_constant_input": {
+      "rms": 0.01,
+      "duration_s": 6.08,
+      "events": 0
+    },
+    "quiet_onset": {
+      "first_chunk_rms": 0.005,
+      "second_chunk_rms": 0.1,
+      "quiet_first_chunk_preserved": false
+    },
+    "note": "Input-volume multiplier is not a measured CPU speedup; no WER or sustained live throughput was measured."
+  },
+  "compiler_macro_probe": {
+    "method": "Reused generated compile_commands.json flags with NDK clang/clang++ -dM -E on empty input.",
+    "c_kernel": "ggml-cpu/arch/arm/quants.c",
+    "c_kernel_features": {
+      "neon": true,
+      "dotprod": false,
+      "fp16_arithmetic": false
+    },
+    "cpp_file": "ggml-cpu/ggml-cpu.cpp",
+    "cpp_features": {
+      "neon": true,
+      "dotprod": true,
+      "fp16_scalar_arithmetic": true,
+      "fp16_vector_arithmetic": true
+    },
+    "both_languages_optimized_O3": true,
+    "modified_flags_benchmarked": false
+  },
+  "installed_model_header": {
+    "general.name": "parakeet-tdt-0.6b-v3.oss-align.q8_0",
+    "general.architecture": "asr",
+    "asr.encoder.cache_supported": false,
+    "asr.encoder.att_context_style": "regular",
+    "asr.preprocessor.sample_rate": 16000,
+    "metadata_bytes": 113471,
+    "full_model_checksum_verified": false
+  },
+  "device": {
+    "model": "SM-S908E",
+    "android_release": "16",
+    "api": 36,
+    "build_note": "Pre-existing installed app; newly built APKs were not installed. Timings are not a controlled release-build benchmark.",
+    "benchmark_audio": {
+      "name": "sample_jfk.wav",
+      "sample_rate": 16000,
+      "channels": 1,
+      "pcm_bits": 16,
+      "duration_s": 11.0
+    },
+    "sweep_order_threads": [
+      2,
+      6,
+      8,
+      4
+    ],
+    "runs": [
+      {
+        "threads": 2,
+        "run": 1,
+        "latency_ms": 4236,
+        "status": "Benchmark Complete: RTF = 0.39x (processed in 4236 ms)",
+        "inference_rtf": 0.3850909090909091
+      },
+      {
+        "threads": 2,
+        "run": 2,
+        "latency_ms": 4094,
+        "status": "Benchmark Complete: RTF = 0.37x (processed in 4094 ms)",
+        "inference_rtf": 0.37218181818181817
+      },
+      {
+        "threads": 6,
+        "run": 1,
+        "latency_ms": 5472,
+        "status": "Benchmark Complete: RTF = 0.50x (processed in 5472 ms)",
+        "inference_rtf": 0.4974545454545454
+      },
+      {
+        "threads": 6,
+        "run": 2,
+        "latency_ms": 5299,
+        "status": "Benchmark Complete: RTF = 0.48x (processed in 5299 ms)",
+        "inference_rtf": 0.4817272727272727
+      },
+      {
+        "threads": 8,
+        "run": 1,
+        "latency_ms": 6185,
+        "status": "Benchmark Complete: RTF = 0.56x (processed in 6185 ms)",
+        "inference_rtf": 0.5622727272727273
+      },
+      {
+        "threads": 8,
+        "run": 2,
+        "latency_ms": 5790,
+        "status": "Benchmark Complete: RTF = 0.53x (processed in 5790 ms)",
+        "inference_rtf": 0.5263636363636364
+      },
+      {
+        "threads": 4,
+        "run": 1,
+        "latency_ms": 2156,
+        "status": "Benchmark Complete: RTF = 0.20x (processed in 2156 ms)",
+        "inference_rtf": 0.196
+      },
+      {
+        "threads": 4,
+        "run": 2,
+        "latency_ms": 1850,
+        "status": "Benchmark Complete: RTF = 0.17x (processed in 1850 ms)",
+        "inference_rtf": 0.16818181818181818
+      }
+    ],
+    "earlier_four_thread_latency_ms": [
+      2522,
+      2234
+    ],
+    "restored_threads": 4,
+    "memory_snapshots": {
+      "before_sweep_pss_kib": 935917,
+      "after_sweep_pss_kib": 1005701,
+      "interpretation": "Single snapshots, not evidence of a leak."
+    },
+    "thermal": {
+      "controlled": false,
+      "status_after_sweep": 1
+    },
+    "microphone_started_by_audit": false,
+    "limitations": [
+      "Two runs per setting",
+      "One device",
+      "Sequential order and uncontrolled thermals",
+      "Offline benchmark bypasses VAD and partial scheduling",
+      "No sustained live, WER/CER, energy or modified-build speedup measurements"
+    ]
+  }
+}

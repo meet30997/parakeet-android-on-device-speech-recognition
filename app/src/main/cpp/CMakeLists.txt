@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# NDK r27 requires explicit ELF alignment for Android devices with 16-KiB pages.
+# Apply to every shared library, including the vendored ggml and NeMo targets.
+add_link_options("-Wl,-z,max-page-size=16384" "-Wl,-z,common-page-size=16384")
+
 # Configure SentencePiece as a static library
 set(SPM_ENABLE_SHARED OFF CACHE BOOL "" FORCE)
 set(SPM_BUILD_TEST OFF CACHE BOOL "" FORCE)

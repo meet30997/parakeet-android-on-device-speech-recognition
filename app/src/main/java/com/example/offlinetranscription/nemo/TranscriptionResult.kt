@@ -2,7 +2,7 @@ package com.example.offlinetranscription.nemo
 
 /**
  * Result returned from native NeMo-Speech recognition.
- * Matches JNI signature: (Ljava/lang/String;FFJZ)V
+ * Matches JNI signature: (Ljava/lang/String;FFJZ)V. NaN confidence means unavailable.
  */
 data class TranscriptionResult(
     val text: String,

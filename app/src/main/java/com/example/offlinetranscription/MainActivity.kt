@@ -25,6 +25,17 @@ import com.example.offlinetranscription.ui.TranscriptionViewModel
 class MainActivity : ComponentActivity() {
 
     private val viewModel: TranscriptionViewModel by viewModels()
+    private var hasRecordPermission by mutableStateOf(false)
+
+    override fun onResume() {
+        super.onResume()
+        hasRecordPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onStop() {
+        if (!isChangingConfigurations) viewModel.stopRecording()
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,15 +47,6 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var hasRecordPermission by remember {
-                        mutableStateOf(
-                            ContextCompat.checkSelfPermission(
-                                this,
-                                Manifest.permission.RECORD_AUDIO
-                            ) == PackageManager.PERMISSION_GRANTED
-                        )
-                    }
-
                     val permissionLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.RequestPermission()
                     ) { isGranted ->

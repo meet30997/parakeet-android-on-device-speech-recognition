@@ -1,0 +1,37 @@
+On-device transcription benchmarks: Parakeet TDT 0.6B v3 (Q8_0 GGUF) via NeMo-Speech.cpp
+Collected 2026-10-25 on a Google Pixel 8a (Tensor G3: 1x Cortex-X3, 4x A715, 4x A510), Android 17 / API 37.
+Phone plugged in, screen on, test process in the foreground cpuset. Thermal status stayed at 1 (light).
+Debug APK; native code built with -O3 Release, CPU backend only, GGML_OPENMP off.
+
+CPU builds (GGML_CPU_ARM_ARCH):
+  portable = armv8-a (repository default)
+  dotprod  = armv8.2-a+dotprod+fp16
+  i8mm     = armv8.2-a+dotprod+fp16+i8mm
+Verified by disassembling libggml-cpu.so: portable has 0 sdot instructions; dotprod has 1,139;
+i8mm has 1,139 sdot and 260 smmla.
+
+Rounds:
+  a = portable, dotprod, i8mm in that order; thread sweep 2/4/6/8, then 3 live replays at 4 threads
+  b = i8mm, dotprod, portable (reversed order); 4 threads only, 1 live replay each
+  c = i8mm only; 3-thread benchmark, then live replays alternating 3 and 4 threads
+45-second idle gap before every test invocation.
+
+benchmark-runs.csv
+  One row per complete-file inference of the bundled 11.0-second JFK WAV (16 kHz mono).
+  init_ms: model load plus two preview-shape warmup calls, measured once per test invocation.
+  inference_ms: wall time of one native nemo_speech_asr_recognize_f32 call (from JNI).
+  rtf: inference_ms / audio duration. Below 1 = faster than the audio's length.
+  Five calls per invocation on one loaded recognizer; the first call is included.
+
+live-replay-runs.csv
+  The same WAV fed through the app's live pipeline in 512-sample (32 ms) frames at real-time
+  cadence, replacing the microphone. Same segmentation, mailbox, and inference worker as the app.
+  final_ms: time from the last voiced frame to the final text of the last segment.
+  queue_age_ms: diagnostic; the largest wait observed by the last processed request or capture frame.
+  first_preview_ms: time from the start of the LAST segment that produced a preview to that preview.
+    It does not describe the first segment, and is 0 when no preview was shown for the last segment.
+    Treat it as a diagnostic, not a time-to-first-text measurement.
+  wer: word error rate against the reference after removing case and punctuation.
+
+Limits: one phone, one 11-second English clip, no microphone capture, no peak-memory, battery,
+or sustained-thermal measurement. Not percentile latency.

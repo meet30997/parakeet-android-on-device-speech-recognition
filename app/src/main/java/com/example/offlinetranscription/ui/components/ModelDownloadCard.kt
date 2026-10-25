@@ -28,15 +28,18 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.offlinetranscription.model.DownloadState
+import com.example.offlinetranscription.model.ModelManager
 import com.example.offlinetranscription.theme.CyanAccent
 import com.example.offlinetranscription.theme.NvidiaGreen
 import com.example.offlinetranscription.theme.StatusSuccess
@@ -49,8 +52,10 @@ fun ModelDownloadCard(
     onStartDownload: () -> Unit,
     onPickLocalModel: () -> Unit,
     onTestJfkSample: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    actionsEnabled: Boolean = true
 ) {
+    val uriHandler = LocalUriHandler.current
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -92,23 +97,30 @@ fun ModelDownloadCard(
                 }
 
                 if (isModelReady) {
-                    Text(
-                        text = String.format(java.util.Locale.US, "%.0f MB", modelSizeMb),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = String.format(java.util.Locale.US, "%.0f MiB", modelSizeMb),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
-                    )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             if (isModelReady) {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -130,7 +142,9 @@ fun ModelDownloadCard(
 
                     OutlinedButton(
                         onClick = onTestJfkSample,
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        enabled = actionsEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = CyanAccent
                         )
@@ -138,15 +152,19 @@ fun ModelDownloadCard(
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = "Test JFK",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.size(4.dp))
-                        Text(text = "Test JFK Audio", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.size(6.dp))
+                        Text(
+                            text = "Run JFK Benchmark Audio",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             } else {
                 Text(
-                    text = "Requires Parakeet GGUF model weights (~680 MB) to perform offline speech-to-text inference directly on device CPU.",
+                    text = "Requires Parakeet GGUF model weights (~681 MiB / 714 MB) to perform offline speech-to-text inference directly on device CPU.",
                     style = MaterialTheme.typography.bodySmall.copy(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -172,7 +190,7 @@ fun ModelDownloadCard(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = String.format(java.util.Locale.US, "%.1f / %.1f MB", downloadedMb, totalMb),
+                                    text = String.format(java.util.Locale.US, "%.1f / %.1f MiB", downloadedMb, totalMb),
                                     style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace)
                                 )
                                 Text(
@@ -194,12 +212,18 @@ fun ModelDownloadCard(
                             )
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        ButtonRow(onStartDownload, onPickLocalModel)
+                        ButtonRow(onStartDownload, onPickLocalModel, actionsEnabled)
                     }
                     else -> {
-                        ButtonRow(onStartDownload, onPickLocalModel)
+                        ButtonRow(onStartDownload, onPickLocalModel, actionsEnabled)
                     }
                 }
+            }
+
+            TextButton(onClick = {
+                uriHandler.openUri("https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/blob/${ModelManager.MODEL_REVISION}/README.md")
+            }) {
+                Text("NVIDIA Parakeet v3 · Model card & CC BY 4.0", fontSize = 12.sp)
             }
         }
     }
@@ -208,7 +232,8 @@ fun ModelDownloadCard(
 @Composable
 private fun ButtonRow(
     onStartDownload: () -> Unit,
-    onPickLocalModel: () -> Unit
+    onPickLocalModel: () -> Unit,
+    enabled: Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -216,7 +241,9 @@ private fun ButtonRow(
     ) {
         Button(
             onClick = onStartDownload,
+            enabled = enabled,
             modifier = Modifier.weight(1f),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 10.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = NvidiaGreen,
                 contentColor = androidx.compose.ui.graphics.Color.Black
@@ -224,16 +251,27 @@ private fun ButtonRow(
         ) {
             Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.size(6.dp))
-            Text(text = "Download Model", fontWeight = FontWeight.Bold)
+            Text(
+                text = "Download Model",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                maxLines = 1
+            )
         }
 
         OutlinedButton(
             onClick = onPickLocalModel,
-            modifier = Modifier.weight(1f)
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 10.dp)
         ) {
             Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.size(6.dp))
-            Text(text = "Import .GGUF")
+            Text(
+                text = "Import .GGUF",
+                fontSize = 13.sp,
+                maxLines = 1
+            )
         }
     }
 }

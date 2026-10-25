@@ -1,0 +1,3 @@
+[submodule "app/src/main/cpp/vendor/sentencepiece"]
+	path = app/src/main/cpp/vendor/sentencepiece
+	url = https://github.com/google/sentencepiece.git

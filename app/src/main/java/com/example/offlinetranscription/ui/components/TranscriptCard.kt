@@ -92,7 +92,7 @@ fun TranscriptCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "$confPercent%",
+                            text = if (turn.confidence.isFinite()) "$confPercent%" else "Confidence unavailable",
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
